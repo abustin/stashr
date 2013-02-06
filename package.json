@@ -1,0 +1,11 @@
+{
+  "name": "stashr",
+  "version": "0.1.3",
+  "description": "A service for stashing files in the cloud.  A quick way to move files between machines.",
+  "main": "./bin/stashr",
+  "author": "Alex Bustin",
+  "license": "BSD",
+  "bin": {
+    "stashr": "./bin/stashr"
+  }
+}

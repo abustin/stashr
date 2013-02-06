@@ -1,0 +1,100 @@
+#!/usr/bin/env node
+var http = require('http');
+var fs = require('fs');
+
+var host = "littlebigapp.com"
+var base = process.env.HOME + "/.stasher/";
+var pwd = process.cwd();
+
+var userKey = "";
+
+if (!fs.existsSync(base)) {
+    fs.mkdirSync(base)
+    // todo: do user setup
+}
+
+if (fs.existsSync(base+".key")) {
+    userKey = fs.readFileSync(base+".key", "utf8") +""; 
+    userKey = userKey.replace("\n",""); 
+}
+
+var stashName = process.argv[process.argv.length - 1];
+var op = process.argv[process.argv.length - 2].toLowerCase();
+var file = base + Math.random().toString(36).substring(7);
+
+var postOpts = {
+    method: "POST",
+    host: host,
+    port: 7070,
+    path: "/",
+    headers: {
+        "Content-Length": 0,
+        'Content-Type': 'application/octet-stream',
+        "X-Stash-Name": stashName,
+        "X-Stash-API-Version": "1.0.0",
+        "X-Stash-Key": userKey
+    }
+};
+
+var getOpts = {
+    method: "GET",
+    host: host,
+    port: 7070,
+    path: "/",
+    headers: {
+        "Connection": "keep-alive",
+        "X-Stash-Name": stashName,
+        "X-Stash-API-Version": "1.0.0",
+        "X-Stash-Key": userKey
+    }
+};
+
+var exec = require('child_process').exec;
+
+if (op === "key") {
+    fs.writeFileSync(base+".key", stashName);    
+}
+
+if (op === "put") {
+
+	console.log("PUTTING "+stashName);
+    var child = exec('tar -C '+pwd+' -zcvf ' + file + ' .', function (error, stdout, stderr) {
+        console.log(stdout);
+        if (!error) {
+            fs.stat(file, function(error, stat) {
+
+                postOpts.headers['Content-Length'] = stat.size;
+                
+                var req = http.request(postOpts, function (res) {
+                    res.on("end", function () {
+                        fs.unlinkSync(file);
+                    })
+                });
+
+                req.on('error', function(e) {
+                    console.log('service unavailable');
+                });
+
+                fs.createReadStream(file).pipe(req);
+            });
+        }
+    });
+
+}
+
+if (op === "get") {
+
+	console.log("GETTING "+stashName);
+    
+    var req = http.request(getOpts, function (res) {
+        res.pipe(fs.createWriteStream(file));
+        res.on("end", function () {
+            var child = exec('tar -C '+pwd+' -zxvf ' + file + '', function (error, stdout, stderr) {
+                console.log(stdout);
+                fs.unlinkSync(file);
+            });
+        })
+    })
+
+    req.end();
+}
